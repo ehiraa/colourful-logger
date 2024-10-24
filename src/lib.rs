@@ -3,35 +3,55 @@
 use colored::Colorize;
 use pad::{PadStr, Alignment};
 use chrono::prelude::*;
-use std::io::Write;
+use std::{backtrace, io::Write};
+use serde::Deserialize;
+use std::fs::OpenOptions;
 
-enum LogLevel {
-    Fatal,
-    Error,
-    Warn,
-    Info,
-    Debug,
-    Silly
+#[derive(Clone, Copy)]
+pub enum LogLevel {
+    Fatal   = 0,
+    Error   = 1,
+    Warn    = 2,
+    Info    = 3,
+    Debug   = 4,
+    Silly   = 5
 }
 
-pub struct Logger {}
+#[derive(Default)]
+pub struct Logger {
+    log_level: Option<LogLevel>,
+    log_file: Option<String>,
+    break_length: u8,
+    max_array_length: u8,
+}
 
 #[warn(dead_code)]
 struct Connectors {
     single_line: &'static str,
+    start_line:  &'static str,
+    line:        &'static str,
+    end_line:    &'static str,
 }
 
 impl Default for Connectors {
     fn default() -> Self {
         Connectors {
             single_line: "▪",
+            start_line:  "┏",
+            line:        "┃",
+            end_line:    "┗",   
         }
     }
 }
 
 impl Logger {
-    pub fn new() -> Self {
-        Logger {}
+    pub fn new(level: Option<LogLevel>, file: Option<String>) -> Self {
+        Logger {
+            log_level: Some(level.unwrap_or(LogLevel::Info)),
+            log_file: Some(file.unwrap_or(String::from(""))),
+            break_length: 60,
+            max_array_length: 120,
+        }
     }
 
     fn get_tag(&self, level: &LogLevel) -> String {
@@ -55,7 +75,7 @@ impl Logger {
         let minute = now.to_utc().minute().to_string();
         let second = now.to_utc().second().to_string();
 
-        let time_format = format!("[{}-{}-{} {}:{}:{}]", year, month, day, hour, minute, second);
+        let time_format = format!("[{}-{:02}-{:02} {:02}:{:02}:{:02}]", year, month, day, hour, minute, second);
         return time_format.dimmed().to_string()
     }
 
@@ -69,8 +89,25 @@ impl Logger {
             LogLevel::Fatal =>  colored::Color::Red,
         }
     }
+
+    fn get_calle(&self) -> String {
+        let backtrace = backtrace::Backtrace::capture();
+        let backtrace_str = format!("{:?}", backtrace);
+        let lines: Vec<&str> = backtrace_str.lines().collect();
+        if lines.len() < 4 {
+            return "".to_string();
+        }
+        let calle = lines[3];
+        format!("{}", calle.italic())
+    }
  
-    fn _write(&self, message: &str, tag: &str, level: LogLevel)  {
+    fn _write<'a, T>(&self, message: &str, tag: &str, level: LogLevel, object: T) where T: Deserialize<'a>  {
+        if let Some(log_level) = self.log_level {
+            if (level as i32) > (log_level as i32) {
+                return;
+            }
+        }
+
         let message = message.to_string();
         let tag = tag.to_string();
         let connectors = &Connectors::default();
@@ -84,32 +121,121 @@ impl Logger {
             timestamp, level_tag, connectors.single_line, domain_tag, main_message
         );
 
+        if let Some(log_file) = &self.log_file {
+            if !log_file.is_empty() {
+                let file = OpenOptions::new()
+                                .write(true)
+                                .append(true)
+                                .create(true)
+                                .open(log_file);
+
+                match file {
+                    Ok(mut file) => {
+                        writeln!(file, "{}", log).unwrap();
+                    }
+                    Err(error) => {
+                        eprint!("Failed to write to log file: {}", error);
+                    }
+                }
+                return;
+            }
+        }
+
         let stdout = std::io::stdout();
         let mut handle = stdout.lock();
         writeln!(handle, "{}", log).unwrap();
     }
 
-    pub fn silly(&self, message: &str, tag: &str)  {
-        self._write(message, tag, LogLevel::Silly)
+    fn _write_single(&self, message: &str, tag: &str, level: LogLevel)  {
+        if let Some(log_level) = self.log_level {
+            if (level as i32) > (log_level as i32) {
+                return;
+            }
+        }
+
+        let message = message.to_string();
+        let tag = tag.to_string();
+        let connectors = &Connectors::default();
+        let color = self.get_colour(&level);
+        let timestamp = self.timestamp();
+        let level_tag = self.get_tag(&level);
+        let domain_tag = format!("[{}]", tag.color(color));
+        let main_message = message.color(color);
+        let log = format!(
+            "{} {} {} {} {}",
+            timestamp, level_tag, connectors.single_line, domain_tag, main_message
+        );
+
+        if let Some(log_file) = &self.log_file {
+            if !log_file.is_empty() {
+                let file = OpenOptions::new()
+                                .write(true)
+                                .append(true)
+                                .create(true)
+                                .open(log_file);
+
+                match file {
+                    Ok(mut file) => {
+                        writeln!(file, "{}", log).unwrap();
+                    }
+                    Err(error) => {
+                        eprint!("Failed to write to log file: {}", error);
+                    }
+                }
+                return;
+            }
+        }
+
+        let stdout = std::io::stdout();
+        let mut handle = stdout.lock();
+        writeln!(handle, "{}", log).unwrap();
     }
 
-    pub fn debug(&self, message: &str, tag: &str)  {
-        self._write(message, tag, LogLevel::Debug)
+    pub fn silly<'a, T>(&self, message: &str, tag: &str, object: T) where T: Deserialize<'a>  {
+        self._write(message, tag, LogLevel::Silly, object);
     }
 
-    pub fn info(&self, message: &str, tag: &str)  {
-        self._write( message, tag, LogLevel::Info)
+    pub fn debug<'a, T>(&self, message: &str, tag: &str, object: T) where T: Deserialize<'a> {
+        self._write(message, tag, LogLevel::Debug, object)
     }
 
-    pub fn warn(&self, message: &str, tag: &str)  {
-        self._write( message, tag, LogLevel::Warn)
+    pub fn info<'a, T>(&self, message: &str, tag: &str, object: T) where T: Deserialize<'a>  {
+        self._write( message, tag, LogLevel::Info, object)
     }
 
-    pub fn error(&self, message: &str, tag: &str)  {
-        self._write( message, tag, LogLevel::Error)
+    pub fn warn<'a, T>(&self, message: &str, tag: &str, object: T) where T: Deserialize<'a>  {
+        self._write( message, tag, LogLevel::Warn, object)
     }
 
-    pub fn fatal(&self, message: &str, tag: &str)  {
-        self._write( message, tag, LogLevel::Fatal)
+    pub fn error<'a, T>(&self, message: &str, tag: &str, object: T) where T: Deserialize<'a>  {
+        self._write( message, tag, LogLevel::Error, object)
+    }
+
+    pub fn fatal<'a, T>(&self, message: &str, tag: &str, object: T) where T: Deserialize<'a>  {
+        self._write(message, tag, LogLevel::Fatal, object)
+    }
+
+    pub fn silly_single(&self, message: &str, tag: &str)  {
+        self._write_single(message, tag, LogLevel::Silly);
+    }
+    
+    pub fn debug_single(&self, message: &str, tag: &str) {
+        self._write_single(message, tag, LogLevel::Debug)
+    }
+
+    pub fn info_single(&self, message: &str, tag: &str)   {
+        self._write_single(message, tag, LogLevel::Info)
+    }
+
+    pub fn warn_single(&self, message: &str, tag: &str)   {
+        self._write_single(message, tag, LogLevel::Warn)
+    }
+
+    pub fn error_single(&self, message: &str, tag: &str)   {
+        self._write_single(message, tag, LogLevel::Error)
+    }
+
+    pub fn fatal_single(&self, message: &str, tag: &str)   {
+        self._write_single(message, tag, LogLevel::Fatal)
     }
 }
