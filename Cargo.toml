@@ -1,7 +1,7 @@
 [package]
 name = "colourful-logger"
 license = "MIT"
-version = "0.1.3"
+version = "2.0.0"
 edition = "2021"
 keywords = ["logging", "minimal", "logger", "colourful-logging"]
 categories = ["development-tools::debugging", "development-tools::testing"]
@@ -12,4 +12,7 @@ repository = "https://github.com/devtomos/colourful-logger"
 colored = "2"
 pad = "0.1"
 chrono = "0.4.38"
-serde = "1.0.213"
+serde = { version = "1.0.213", features = ["derive"] }
+serde_json = "1.0.3"
+backtrace = "0.3"
+regex = "1.11.1"
