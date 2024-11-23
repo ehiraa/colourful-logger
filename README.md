@@ -66,7 +66,7 @@ fn main(): {
 
     // Output
     // [2024-10-25 07:08:11] info: ┏ [Tag] This is a message!
-    //                              ┗ [1] {"field1":"some random value 2","field2":69}
+    //                             ┗ [1] {"field1":"some random value 2","field2":69}
     //
     // [2024-10-25 07:08:11] info:  ┏ [Main] Another message!
     //                              ┃ at main.rs:42:5 [colourful_logger::main::h64e1f92e8d679d92]
