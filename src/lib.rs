@@ -9,6 +9,7 @@ use std::io::Write;
 use std::fs::OpenOptions;
 use backtrace::Backtrace;
 use regex::Regex;
+use std::env;
 
 #[derive(Clone, Copy)]
 pub enum LogLevel {
@@ -45,7 +46,23 @@ impl Default for Connectors {
 
 impl Default for Logger {
     fn default() -> Self {
-        Self { log_level: LogLevel::Info, log_file: String::from("") }
+        dotenvy::dotenv().unwrap_or_default();
+
+        let log_level = env::var("LOG_LEVEL")
+            .unwrap_or_else(|_| "info".to_string())
+            .to_lowercase();
+
+        let log_level = match log_level.as_str() {
+            "silly" | "5" => LogLevel::Silly,
+            "debug" | "4" => LogLevel::Debug,
+            "info"  | "3"  => LogLevel::Info,
+            "warn"  | "2"  => LogLevel::Warn,
+            "error" | "1" => LogLevel::Error,
+            "fatal" | "0" => LogLevel::Fatal,
+            _ => LogLevel::Info,
+        };
+
+        Self { log_level: log_level, log_file: String::from("") }
     }
 }
 

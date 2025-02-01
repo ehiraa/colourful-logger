@@ -1,7 +1,7 @@
 [package]
 name = "colourful-logger"
 license = "MIT"
-version = "2.0.0"
+version = "2.0.1"
 edition = "2021"
 keywords = ["logging", "minimal", "logger", "colourful-logging"]
 categories = ["development-tools::debugging", "development-tools::testing"]
@@ -9,10 +9,11 @@ description = "A minimal colourful logger for Rust"
 repository = "https://github.com/devtomos/colourful-logger"
 
 [dependencies]
-colored = "2"
+colored = "3.0.0"
 pad = "0.1"
 chrono = "0.4.38"
 serde = { version = "1.0.213", features = ["derive"] }
 serde_json = "1.0.3"
 backtrace = "0.3"
 regex = "1.11.1"
+dotenvy = "0.15.7"
